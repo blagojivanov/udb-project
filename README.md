@@ -274,4 +274,91 @@ CREATE CONSTRAINT FOR (p:Person) REQUIRE p.email IS UNIQUE
 
 ### Внесување на податоци
 
-LOAD CSV
+#### LOAD CSV
+CSV фајлот треба да има header (прва линија со имиња на колони), на пример:
+```
+name,age,city
+Anna,25,Paris
+Bob,30,Beijing
+```
+
+``LOAD CSV`` е корисен кога имаме мали до средно големи податочни множества.
+
+```cypher
+LOAD CSV WITH HEADERS FROM 'file:///your_file.csv' AS row
+CREATE (n:NodeLabel {property1: row.column1, property2: row. column2})
+```
+-	WITH HEADERS: означува дека првиот ред од CSV-фајлот содржи хедери (имиња на колони), кои понатаму може да се користат како имиња на полињата.
+- AS row: На секој ред од CSV-фајлот му доделува променлива со име row, преку која се пристапува до вредностите од тој ред.
+- file:///your_file.csv – фајлот мора да биде во import директориумот! (your_file е името на вашиот фајл)
+- row.column1, row.column2 се колоните.
+- CREATE или MERGE: Се користат за креирање (CREATE) или ажурирање (MERGE) на јазли и релации врз основа на податоците од CSV-фајлот.
+
+Пример:
+```csv
+from,to,since
+Anna,Bob,2015
+Bob,Gabriel,2018
+```
+
+Креирање на јазли и релација:
+```cypher
+LOAD CSV WITH HEADERS FROM 'file:///friends.csv' AS row
+CREATE (a:Person {name: row.from})
+CREATE (b:Person {name: row.to}) 
+CREATE (a)-[:FRIEND_WITH ]->(b) 
+```
+
+Откако ќе го извршиме CREATE прашалникот, го добиваме следниот граф:
+![alt text](images/image4.png)
+
+Но доколку веќе постојат јазли со тие имиња, место да ги креираме CREATE може да искористиме MERGE за да избегнеме дупликати. 
+MERGE проверува дали таков јазол веќе постои – ако постои, го користи него; ако не, создава нов, а CREATE секогаш креира нов јазол.
+
+```cypher
+MERGE (a:Person {name: row.from})
+MERGE (b:Person {name: row.to})
+CREATE (a)-[:FRIEND_WITH]->(b)
+```
+
+![alt text](images/image5.png)
+
+
+
+#### Користење на neo4j-admin database import команда
+- Овој метод е наменет за внесување на многу големи сетови на податоци (над 10 милиони записи) и бара базата да биде офлајн за време на внесот. Подготовка:
+- CSV-датотеките треба да бидат специјално структурирани за оваа алатка — одделни датотеки за јазли и релации, и специјални колони како :ID, :START_ID, :END_ID, и :TYPE. 
+Извршување:
+- Командата се стартува од терминал, при што се специфицираат патеките до CSV-датотеките за јазли и релации.
+
+Пример команда:
+```
+neo4j-admin database import full --nodes=Person=import/persons.csv --relationships=FRIEND_WITH=import/friends.csv --database=graph.db
+```
+
+## Практична работа:
+
+### Податочни множества со пријателства
+Превземете ги датотеките people.csv, friendships.csv, countries.csv од import фолдерот и инсертирајте ги во базата.
+
+```cypher
+LOAD CSV WITH HEADERS FROM 'file:///import/people.csv' AS row
+MERGE (a:Person {name: row.name, age: toInteger(row.age)})
+MERGE (b:City {name: row.city})
+CREATE (a)-[:LIVES_IN]->(b);
+
+LOAD CSV WITH HEADERS FROM 'file:///import/friendships.csv' AS row
+MATCH (a:Person {name: row.from})
+MATCH (b:Person {name: row.to})
+CREATE (a)-[:FRIEND_WITH {since: toInteger(row.since)}]->(b);
+
+LOAD CSV WITH HEADERS FROM 'file:///import/countries.csv' AS row
+MATCH (city:City {name: row.name})
+SET city.population = toInteger(row.population)
+MERGE (country:Country {name: row.country})
+CREATE (city)-[:IS_IN]->(country);
+```
+
+По вчитување на сите csv фајлови, се добива граф кој треба да изгледа слично на ова:
+![alt text](images/graph.png)
+
