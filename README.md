@@ -338,6 +338,83 @@ neo4j-admin database import full --nodes=Person=import/persons.csv --relationshi
 
 ## Практична работа:
 
+### Податочно множество со книги
+Превземете го податочното множество books.csv од import фолдерот и инсертирајте го во база.
+
+```cypher
+LOAD CSV WITH HEADERS FROM 'file:///import/books.csv' AS row
+MERGE (a:Author {name: row.author})
+CREATE (b:Book {title: row.title})
+CREATE (a)-[:WROTE {year: toInteger(row.year)}]->(b);
+```
+
+#### Задачи
+1. Излистај ги сите книги
+```cypher
+MATCH (b:Book)
+RETURN b.title
+```
+2. Излистај ги сите автори
+```cypher
+MATCH (a:Author)
+RETURN DISTINCT a.name
+```
+3. Излистај ги сите книги објавени пред 2000
+```cypher
+MATCH (a:Author)-[r:WROTE]->(b:Book)
+WHERE r.year < 2000
+RETURN b.title, r.year
+```
+4. Излистај ги сите книги од “Dan Brown”
+```cypher
+MATCH (a:Author)-[r:WROTE]->(b:Book)
+WHERE a.name = 'Dan Brown'
+RETURN b.title
+```
+5. Број на книги за секој автор подредени во опаѓачки редослед
+```cypher
+MATCH (a:Author)-[:WROTE]->(b:Book)
+RETURN a.name, count(b) AS numberOfBooks
+ORDER BY numberOfBooks DESC
+```
+6. Број на книги за секоја година подредени според годината
+```cypher
+MATCH (a:Author)-[r:WROTE]->(b:Book)
+RETURN r.year, count(b) AS num_books
+ORDER BY r.year desc
+```
+7. Најстарата книга и нејзиниот автор
+```cypher
+MATCH (a:Author)-[r:WROTE]->(b:Book)
+RETURN b.title, a.author, r.year
+ORDER BY r.year ASC
+LIMIT 1
+```
+8. Авторот со најмногу книги
+```cypher
+MATCH (a:Author)-[:WROTE]->(b:Book)
+WITH a.name AS name, count(b) AS num_books
+ORDER BY num_books DESC
+LIMIT 1
+RETURN name, num_books
+```
+9. Годината со најмногу издадени книги
+```cypher
+MATCH (a:Author)-[r:WROTE]->(b:Book)
+RETURN r.year, count(*) AS num_books
+ORDER BY num_books DESC
+LIMIT 1
+```
+10. Сите книги чиј автор има издадено повеќе од 2 книги 
+```cypher
+MATCH (a:Author)-[:WROTE]->(b:Book)
+WITH a, count(b) AS num_books
+WHERE num_books > 2
+MATCH (a)-[:WROTE]->(c:Book)
+RETURN c.title AS title
+```
+
+
 ### Податочни множества со пријателства
 Превземете ги датотеките people.csv, friendships.csv, countries.csv од import фолдерот и инсертирајте ги во базата.
 
@@ -359,6 +436,37 @@ MERGE (country:Country {name: row.country})
 CREATE (city)-[:IS_IN]->(country);
 ```
 
-По вчитување на сите csv фајлови, се добива граф кој треба да изгледа слично на ова:
+По вчитување на сите csv фајлови, се добива граф кој треба да изгледа слично на овој:
 ![alt text](images/graph.png)
 
+#### Задачи:
+1. Пронајди го најкраткиот пат помеѓу двајца Samantha и Jessica и испиши ги сите имиња на јазлите низ кои минува патот.
+
+```cypher
+MATCH (a:Person {name: "Samantha"}), (b:Person {name: "Jessica"})
+MATCH path = shortestPath ((a)-[: FRIEND_WITH*] -(b))
+RETURN [n IN nodes (path) | n.name] AS path
+```
+
+2. За секој човек, колку пријатели има што живеат во различен град од неговиот.
+```cypher
+MATCH (p:Person)-[:LIVES_IN]->(pc:City)
+MATCH (p)-[:FRIEND_WITH]->(f:Person)-[:LIVES_IN]->(fc:City)
+WHERE pc.name <> fc.name
+RETURN p.name AS person, count(f) AS friends_in_other_cities;
+```
+
+3. Пронајди ги сите лица што немаат пријатели:
+```cypher
+MATCH (p:Person)
+WHERE NOT (p)-[:FRIEND_WITH] - (:Person)
+RETURN p.name
+```
+
+4. Пронајди го лицето кое има најмногу пријатели
+```
+MATCH (p: Person) - [:FRIEND_WITH] ->(f:Person)
+RETURN p.name, count(f) AS num_friends
+ORDER BY num_friends DESC
+LIMIT 1
+```
