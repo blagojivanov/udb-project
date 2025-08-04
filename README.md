@@ -464,7 +464,7 @@ RETURN p.name
 ```
 
 4. Пронајди го лицето кое има најмногу пријатели
-```
+```cypher
 MATCH (p: Person) - [:FRIEND_WITH] ->(f:Person)
 RETURN p.name, count(f) AS num_friends
 ORDER BY num_friends DESC
